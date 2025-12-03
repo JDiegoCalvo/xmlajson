@@ -96,16 +96,6 @@ export class PagoEmitido extends BaseProcessor {
         ABONOS: abonos,
         RETENCIONES: retenciones
       },
-      metadata: {
-        montoTotalPago,
-        netoTransferido,
-        totalRetenciones,
-        numFacturas: doctosRelacionados.length,
-        formaPago,
-        fechaPago: complementoPago?.['@_FechaPago'] || ''
-      }
     };
   }
 }
-
-export { PagoEmitido };
