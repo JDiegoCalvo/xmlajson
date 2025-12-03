@@ -1,4 +1,4 @@
-import { CFDIData, Entidad, ResultadoContable, ConfigProcesamiento } from '@/types.js';
+import { CFDIData, Entidad, ResultadoContable, ConfigProcesamiento } from '@/types/index.js';
 
 export abstract class BaseProcessor {
   protected config: ConfigProcesamiento;
