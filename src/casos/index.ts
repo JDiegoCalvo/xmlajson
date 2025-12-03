@@ -1,7 +1,7 @@
-import { BaseProcessor } from '@/core/baseProcessor';
-import { ConfigProcesamiento } from '@/types';
-import { determinarCasoEmitidos } from './emitidos/index';
-import { determinarCasoRecibidos } from './recibidos/index';
+import { BaseProcessor } from '@/core/baseProcessor.js';
+import { ConfigProcesamiento } from '@/types.js';
+import { determinarCasoEmitidos } from './emitidos/index.js';
+import { determinarCasoRecibidos } from './recibidos/index.js';
 
 export class RouterCasos {
   static async procesar(

@@ -1,6 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
-import { RouterCasos } from './casos';
-import { ConfigProcesamiento } from './types';
+import { RouterCasos } from './casos/index.js';
+import { ConfigProcesamiento } from './types.js';
 
 const parser = new XMLParser({
   ignoreAttributes: false,

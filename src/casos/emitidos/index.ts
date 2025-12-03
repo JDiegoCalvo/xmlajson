@@ -1,10 +1,10 @@
-import { IngresoPPDEmitido } from './ingreso/PPD';
-import { IngresoPUEEmitido } from './ingreso/PUE';
-import { EgresoPPDEmitido } from './egreso/PPD';
-import { EgresoPUEEmitido } from './egreso/PUE';
-import { NominaEmitida } from './nomina';
-import { PagoEmitido } from './pago';
-import { BaseProcessor } from '@/core/baseProcessor';
+import { IngresoPPDEmitido } from './ingreso/PPD.js';
+import { IngresoPUEEmitido } from './ingreso/PUE.js';
+import { EgresoPPDEmitido } from './egreso/PPD.js';
+import { EgresoPUEEmitido } from './egreso/PUE.js';
+import { NominaEmitida } from './nomina.js';
+import { PagoEmitido } from './pago.js';
+import { BaseProcessor } from '@/core/baseProcessor.js';
 
 type TipoComprobante = 'I' | 'E' | 'P' | 'N';
 type MetodoPago = 'PUE' | 'PPD';

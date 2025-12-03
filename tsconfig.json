@@ -13,12 +13,9 @@
     "paths": {
       "@/*": ["./*"],
       "@types/*": ["types/*"],
-      "@casos/*": ["casos/*"],
-      "@core/*": ["core/*"],
-      "@utils/*": ["utils/*"]
+      "@casos/*": ["casos/*"]
     }
   },
-  "tsc-alias": {
-    "resolveFullPaths": true
-  }
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

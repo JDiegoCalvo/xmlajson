@@ -1,5 +1,5 @@
-import { BaseProcessor } from '@/core/baseProcessor';
-import { ResultadoContable } from '@/types';
+import { BaseProcessor } from '@/core/baseProcessor.js';
+import { ResultadoContable } from '@/types.js';
 
 export class IngresoPPDEmitido extends BaseProcessor {
   static readonly tipo = 'I' as const;
