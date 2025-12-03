@@ -71,17 +71,6 @@ export class NominaEmitida extends BaseProcessor {
         CARGOS: cargos,
         ABONOS: abonos
       },
-      // Datos específicos de nómina para referencia
-      metadata: {
-        totalPercepciones,
-        totalDeducciones,
-        netoAPagar,
-        empleado: xmlData.receptor.nombre,
-        rfcEmpleado: xmlData.receptor.rfc,
-        periodoPago: complementoNomina?.['@_FechaPago'] || ''
-      }
     };
   }
 }
-
-export { NominaEmitida };

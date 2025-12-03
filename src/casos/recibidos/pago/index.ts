@@ -1,3 +1,6 @@
+import { BaseProcessor } from '../../../core/baseProcessor.js';
+import type { ResultadoContable } from '../../../types/index.js';
+
 export class PagoRecibido extends BaseProcessor {
   static readonly tipo = 'P' as const;
   static readonly descripcion = 'Complemento de pago recibido';
@@ -8,5 +11,3 @@ export class PagoRecibido extends BaseProcessor {
     throw new Error('Por implementar: PagoRecibido');
   }
 }
-
-export { PagoRecibido };

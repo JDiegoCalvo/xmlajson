@@ -1,5 +1,5 @@
 import { BaseProcessor } from '@/core/baseProcessor.js';
-import { ConfigProcesamiento } from '@/types.js';
+import { ConfigProcesamiento } from '@/types/index.js';
 import { determinarCasoEmitidos } from './emitidos/index.js';
 import { determinarCasoRecibidos } from './recibidos/index.js';
 
