@@ -16,13 +16,13 @@ export class IngresoPUEEmitido extends BaseProcessor {
         client_id: this.config.clientId
       },
       PROVEEDOR: this.extraerEntidad(xmlData, 'receptor'),
-      REALIZACION: {
+      DEVENGACION: {
         CARGOS: [
           this.crearMovimiento(
-            '101', '1', '0',
-            xmlData.total,
+            '105', '1', 'X',
+            xmlData.subtotal + ivaTrasladado,
             0,
-            xmlData.conceptos?.[0]?.descripcion || 'Cobro contado'
+            xmlData.conceptos?.[0]?.descripcion || 'Venta a crédito'
           )
         ],
         ABONOS: [
@@ -30,10 +30,40 @@ export class IngresoPUEEmitido extends BaseProcessor {
             '401', '1', '0',
             0,
             xmlData.subtotal,
+            xmlData.conceptos?.[0]?.descripcion || 'Ingresos'
+          ),
+          this.crearMovimiento(
+            '209', '1', '0',
+            0,
+            ivaTrasladado,
+            'IVA por cobrar'
+          )
+        ]
+      },
+      REALIZACION: {
+        CARGOS: [
+          this.crearMovimiento(
+            '101', '1', '0',
+            xmlData.total,
+            0,
+            xmlData.conceptos?.[0]?.descripcion || 'Cobro contado'
+          ),
+          this.crearMovimiento(
+            '209', '1', '0',
+            ivaTrasladado,
+            0,
+            'IVA trasladado'
+          ),
+        ],
+        ABONOS: [
+          this.crearMovimiento(
+            '105', '1', '0',
+            0,
+            xmlData.total,
             xmlData.conceptos?.[0]?.descripcion || 'Venta contado'
           ),
           this.crearMovimiento(
-            '115', '1', '0',
+            '208', '1', '0',
             0,
             ivaTrasladado,
             'IVA trasladado'

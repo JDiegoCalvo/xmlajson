@@ -33,7 +33,7 @@ export class IngresoPPDEmitido extends BaseProcessor {
             xmlData.conceptos?.[0]?.descripcion || 'Ingresos'
           ),
           this.crearMovimiento(
-            '205', '1', '0',
+            '209', '1', '0',
             0,
             ivaTrasladado,
             'IVA por cobrar'
