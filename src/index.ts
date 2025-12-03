@@ -9,8 +9,9 @@ const parser = new XMLParser({
   parseTagValue: true,
   parseAttributeValue: true,
   isArray: (name, jpath, isLeafNode, isAttribute) => {
-    // Forzar array para estos nodos que pueden repetirse
-    if (name === 'cfdi:Concepto' || name === 'cfdi:Traslado' || name === 'cfdi:Retencion') {
+    // Forzar array para estos nodos
+    if (name === 'cfdi:Concepto' || name === 'cfdi:Traslado' || 
+        name === 'cfdi:Retencion' || name === 'cfdi:Impuestos') {
       return true;
     }
     return false;
@@ -23,21 +24,18 @@ export async function procesarFacturaXML(
 ) {
   try {
     // 1. Parsear XML a objeto JSON
-    const jsonObj = parser.parse(xmlString);
-    
-    // ⭐ DEPURACIÓN: Descomenta esto temporalmente para ver la estructura real
-    // console.log('=== ESTRUCTURA DEL PARSER ===');
-    // console.log(JSON.stringify(jsonObj, null, 2).substring(0, 1000));
-    // console.log('=============================');
-    
+    const jsonObj = parser.parse(xmlString); 
     const cfdi = jsonObj['cfdi:Comprobante'];
     if (!cfdi) {
       throw new Error('No se encontró el nodo cfdi:Comprobante en el XML');
     }
 
-    // 2. Normalizar datos - FORMA CORRECTA
+    // Extraer el Timbre Fiscal Digital
+    const timbre = cfdi['cfdi:Complemento']?.['tfd:TimbreFiscalDigital'];
+    
+    // 2. Normalizar datos con TODOS los campos necesarios
     const xmlData = {
-      // Atributos principales del comprobante
+      // Atributos principales del comprobante (para CFDI en ResultadoContable)
       fecha: cfdi['@_Fecha'],
       tipo: cfdi['@_TipoDeComprobante'],
       moneda: cfdi['@_Moneda'],
@@ -46,21 +44,28 @@ export async function procesarFacturaXML(
       metodoPago: cfdi['@_MetodoPago'],
       formaPago: cfdi['@_FormaPago'],
       lugarExpedicion: cfdi['@_LugarExpedicion'],
+      folio: cfdi['@_Folio'] || '',
+      serie: cfdi['@_Serie'] || '',
+      version: cfdi['@_Version'] || '4.0',
+      exportacion: cfdi['@_Exportacion'] || '01',
       
-      // Emisor y Receptor - ASÍ ES LA FORMA CORRECTA
+      // Emisor - datos completos
       emisor: {
         rfc: cfdi['cfdi:Emisor']?.['@_Rfc'],
         nombre: cfdi['cfdi:Emisor']?.['@_Nombre'],
         regimenFiscal: cfdi['cfdi:Emisor']?.['@_RegimenFiscal']
       },
+      
+      // Receptor - datos completos (¡IMPORTANTE: 'UsoCFDI' no 'usoCFDI'!)
       receptor: {
         rfc: cfdi['cfdi:Receptor']?.['@_Rfc'],
         nombre: cfdi['cfdi:Receptor']?.['@_Nombre'],
         regimenFiscal: cfdi['cfdi:Receptor']?.['@_RegimenFiscalReceptor'],
-        usoCFDI: cfdi['cfdi:Receptor']?.['@_UsoCFDI']
+        usoCFDI: cfdi['cfdi:Receptor']?.['@_UsoCFDI'], // ← Así está en el XML
+        domicilioFiscalReceptor: cfdi['cfdi:Receptor']?.['@_DomicilioFiscalReceptor']
       },
       
-      // Conceptos - Manejar tanto array como objeto único
+      // Conceptos
       conceptos: (() => {
         const conceptosNode = cfdi['cfdi:Conceptos'];
         if (!conceptosNode) return [];
@@ -68,36 +73,46 @@ export async function procesarFacturaXML(
         const conceptos = conceptosNode['cfdi:Concepto'];
         if (Array.isArray(conceptos)) {
           return conceptos.map(c => ({
-            descripcion: c['@_Descripcion'],
+            descripcion: c['@_Descripcion'] || '',
             cantidad: parseFloat(c['@_Cantidad'] || '0'),
             valorUnitario: parseFloat(c['@_ValorUnitario'] || '0'),
-            importe: parseFloat(c['@_Importe'] || '0')
+            importe: parseFloat(c['@_Importe'] || '0'),
+            claveProdServ: c['@_ClaveProdServ'] || '',
+            claveUnidad: c['@_ClaveUnidad'] || '',
+            objetoImp: c['@_ObjetoImp'] || ''
           }));
         } else if (conceptos) {
-          // Si es un solo concepto (objeto)
           return [{
-            descripcion: conceptos['@_Descripcion'],
+            descripcion: conceptos['@_Descripcion'] || '',
             cantidad: parseFloat(conceptos['@_Cantidad'] || '0'),
             valorUnitario: parseFloat(conceptos['@_ValorUnitario'] || '0'),
-            importe: parseFloat(conceptos['@_Importe'] || '0')
+            importe: parseFloat(conceptos['@_Importe'] || '0'),
+            claveProdServ: conceptos['@_ClaveProdServ'] || '',
+            claveUnidad: conceptos['@_ClaveUnidad'] || '',
+            objetoImp: conceptos['@_ObjetoImp'] || ''
           }];
         }
         return [];
       })(),
       
-      // Timbre Fiscal (UUID)
-      uuid: cfdi['cfdi:Complemento']?.['tfd:TimbreFiscalDigital']?.['@_UUID'],
-      fechaTimbrado: cfdi['cfdi:Complemento']?.['tfd:TimbreFiscalDigital']?.['@_FechaTimbrado'],
+      // Timbre Fiscal Digital (TFD) - ¡ESTO ES CLAVE PARA 'pac'!
+      uuid: timbre?.['@_UUID'],
+      fechaTimbrado: timbre?.['@_FechaTimbrado'],
+      // 'pac' en el XML se llama 'RfcProvCertif' en el Timbre
+      rfcProvCertif: timbre?.['@_RfcProvCertif'], // ← ESTO ES EL 'pac'
+      noCertificadoSAT: timbre?.['@_NoCertificadoSAT'],
       
-      // Complemento completo (para nómina, pagos, etc.)
+      // Impuestos generales (si existen)
+      impuestos: cfdi['cfdi:Impuestos'] ? {
+        totalImpuestosTrasladados: parseFloat(cfdi['cfdi:Impuestos']?.['@_TotalImpuestosTrasladados'] || '0'),
+        totalImpuestosRetenidos: parseFloat(cfdi['cfdi:Impuestos']?.['@_TotalImpuestosRetenidos'] || '0'),
+        traslados: cfdi['cfdi:Impuestos']?.['cfdi:Traslados']?.['cfdi:Traslado'] || [],
+        retenciones: cfdi['cfdi:Impuestos']?.['cfdi:Retenciones']?.['cfdi:Retencion'] || []
+      } : null,
+      
+      // Complemento completo
       complemento: cfdi['cfdi:Complemento']
     };
-
-    console.log('✅ Datos extraídos correctamente:');
-    console.log(`   UUID: ${xmlData.uuid}`);
-    console.log(`   Emisor: ${xmlData.emisor.rfc} - ${xmlData.emisor.nombre}`);
-    console.log(`   Receptor: ${xmlData.receptor.rfc} - ${xmlData.receptor.nombre}`);
-    console.log(`   Conceptos: ${xmlData.conceptos.length}`);
 
     // 3. Usar el router para procesar
     const resultado = await RouterCasos.procesar(xmlData, config);
@@ -109,31 +124,48 @@ export async function procesarFacturaXML(
   }
 }
 
-// Ejemplo de uso (para pruebas) - CON XML REAL
+// Ejemplo de uso MÁS COMPLETO
 async function ejemploUso() {
-  // XML de prueba REAL - usa uno de tus XML reales
+  // XML de prueba MÁS COMPLETO
   const xmlDeEjemplo = `<?xml version="1.0" encoding="UTF-8"?>
 <cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd"
+                  Version="4.0" 
+                  Serie="F" 
+                  Folio="169"
                   Fecha="2024-01-15T12:00:00"
                   TipoDeComprobante="I"
+                  Moneda="MXN"
                   SubTotal="1000.00"
                   Total="1160.00"
-                  MetodoPago="PUE">
-  <cfdi:Emisor Rfc="AAA010101AAA" Nombre="EMISOR PRUEBA" RegimenFiscal="601"/>
-  <cfdi:Receptor Rfc="CATJ920410000" Nombre="CLIENTE PRUEBA" UsoCFDI="G03"/>
+                  MetodoPago="PUE"
+                  FormaPago="01"
+                  LugarExpedicion="30500"
+                  Exportacion="01">
+  <cfdi:Emisor Rfc="AAA010101AAA" Nombre="EMISOR PRUEBA SA" RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="CATJ920410000" Nombre="CLIENTE PRUEBA" 
+                 RegimenFiscalReceptor="626" UsoCFDI="G03" DomicilioFiscalReceptor="66196"/>
   <cfdi:Conceptos>
-    <cfdi:Concepto Descripcion="SERVICIO DE PRUEBA" Cantidad="1" 
-                   ValorUnitario="1000.00" Importe="1000.00"/>
+    <cfdi:Concepto ClaveProdServ="80131502" Cantidad="1" ClaveUnidad="E48"
+                   Descripcion="SERVICIO DE PRUEBA COMPLETO" 
+                   ValorUnitario="1000.00" Importe="1000.00" ObjetoImp="02"/>
   </cfdi:Conceptos>
   <cfdi:Complemento>
-    <tfd:TimbreFiscalDigital UUID="12345678-1234-1234-1234-123456789012"
-                             FechaTimbrado="2024-01-15T12:05:00"/>
+    <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital"
+                             Version="1.1" 
+                             UUID="12345678-1234-1234-1234-123456789012"
+                             FechaTimbrado="2024-01-15T12:05:00"
+                             NoCertificadoSAT="00001000000705928441"
+                             RfcProvCertif="PPD101129EA3"  <!-- ¡ESTO ES EL 'pac'! -->
+                             SelloCFD="...">
+    </tfd:TimbreFiscalDigital>
   </cfdi:Complemento>
 </cfdi:Comprobante>`;
 
   const config: ConfigProcesamiento = {
     clientId: 123,
-    miRFC: 'CATJ920410000', // Tu RFC
+    miRFC: 'CATJ920410000',
     regimenFiscal: '626'
   };
 
@@ -146,7 +178,7 @@ async function ejemploUso() {
   }
 }
 
-// Para ejecutar el ejemplo al correr el archivo directamente
+// Para ejecutar el ejemplo
 if (import.meta.url === `file://${process.argv[1]}`) {
   ejemploUso();
 }
