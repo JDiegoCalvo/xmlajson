@@ -137,10 +137,10 @@ export async function procesarFacturaXML(
 async function ejemploUso() {
   // XML de prueba MÁS COMPLETO
   const xmlDeEjemplo = ``
-  
+
   const config: ConfigProcesamiento = {
     clientId: 123,
-    miRFC: 'TOAL380320MN2',
+    miRFC: 'XAXX010101000',
     regimenFiscal: '626'
   };
 
