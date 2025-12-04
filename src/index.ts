@@ -48,6 +48,23 @@ export async function procesarFacturaXML(
       serie: cfdi['@_Serie'] || '',
       version: cfdi['@_Version'] || '4.0',
       exportacion: cfdi['@_Exportacion'] || '01',
+      impuestos: {
+        // Impuestos a nivel comprobante
+        traslados: cfdi['cfdi:Impuestos']?.['cfdi:Traslados']?.['cfdi:Traslado'] || [],
+        retenciones: cfdi['cfdi:Impuestos']?.['cfdi:Retenciones']?.['cfdi:Retencion'] || [],
+        
+        // Impuestos a nivel concepto (si los necesitas)
+        conceptosImpuestos: (() => {
+          const conceptos = cfdi['cfdi:Conceptos']?.['cfdi:Concepto'];
+          if (!conceptos) return [];
+          
+          const conceptosArray = Array.isArray(conceptos) ? conceptos : [conceptos];
+          return conceptosArray.map((concepto: any) => ({
+            traslados: concepto['cfdi:Impuestos']?.['cfdi:Traslados']?.['cfdi:Traslado'] || [],
+            retenciones: concepto['cfdi:Impuestos']?.['cfdi:Retenciones']?.['cfdi:Retencion'] || []
+          }));
+        })()
+      },
       
       // Emisor - datos completos
       emisor: {
@@ -102,14 +119,6 @@ export async function procesarFacturaXML(
       rfcProvCertif: timbre?.['@_RfcProvCertif'], // ← ESTO ES EL 'pac'
       noCertificadoSAT: timbre?.['@_NoCertificadoSAT'],
       
-      // Impuestos generales (si existen)
-      impuestos: cfdi['cfdi:Impuestos'] ? {
-        totalImpuestosTrasladados: parseFloat(cfdi['cfdi:Impuestos']?.['@_TotalImpuestosTrasladados'] || '0'),
-        totalImpuestosRetenidos: parseFloat(cfdi['cfdi:Impuestos']?.['@_TotalImpuestosRetenidos'] || '0'),
-        traslados: cfdi['cfdi:Impuestos']?.['cfdi:Traslados']?.['cfdi:Traslado'] || [],
-        retenciones: cfdi['cfdi:Impuestos']?.['cfdi:Retenciones']?.['cfdi:Retencion'] || []
-      } : null,
-      
       // Complemento completo
       complemento: cfdi['cfdi:Complemento']
     };
@@ -127,45 +136,11 @@ export async function procesarFacturaXML(
 // Ejemplo de uso MÁS COMPLETO
 async function ejemploUso() {
   // XML de prueba MÁS COMPLETO
-  const xmlDeEjemplo = `<?xml version="1.0" encoding="UTF-8"?>
-<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" 
-                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                  xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd"
-                  Version="4.0" 
-                  Serie="F" 
-                  Folio="169"
-                  Fecha="2024-01-15T12:00:00"
-                  TipoDeComprobante="I"
-                  Moneda="MXN"
-                  SubTotal="1000.00"
-                  Total="1160.00"
-                  MetodoPago="PUE"
-                  FormaPago="01"
-                  LugarExpedicion="30500"
-                  Exportacion="01">
-  <cfdi:Emisor Rfc="AAA010101AAA" Nombre="EMISOR PRUEBA SA" RegimenFiscal="601"/>
-  <cfdi:Receptor Rfc="CATJ920410000" Nombre="CLIENTE PRUEBA" 
-                 RegimenFiscalReceptor="626" UsoCFDI="G03" DomicilioFiscalReceptor="66196"/>
-  <cfdi:Conceptos>
-    <cfdi:Concepto ClaveProdServ="80131502" Cantidad="1" ClaveUnidad="E48"
-                   Descripcion="SERVICIO DE PRUEBA COMPLETO" 
-                   ValorUnitario="1000.00" Importe="1000.00" ObjetoImp="02"/>
-  </cfdi:Conceptos>
-  <cfdi:Complemento>
-    <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital"
-                             Version="1.1" 
-                             UUID="12345678-1234-1234-1234-123456789012"
-                             FechaTimbrado="2024-01-15T12:05:00"
-                             NoCertificadoSAT="00001000000705928441"
-                             RfcProvCertif="PPD101129EA3"  <!-- ¡ESTO ES EL 'pac'! -->
-                             SelloCFD="...">
-    </tfd:TimbreFiscalDigital>
-  </cfdi:Complemento>
-</cfdi:Comprobante>`;
-
+  const xmlDeEjemplo = ``
+  
   const config: ConfigProcesamiento = {
     clientId: 123,
-    miRFC: 'CATJ920410000',
+    miRFC: 'TOAL380320MN2',
     regimenFiscal: '626'
   };
 

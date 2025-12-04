@@ -1,5 +1,6 @@
 import { BaseProcessor } from '@/core/baseProcessor.js';
 import { ResultadoContable } from '@/types/index.js';
+import { calcularIVATrasladado, calcularISRRetenido, calcularIVARetenido } from '@/utils/calculosImpuestos.js';
 
 export class IngresoPPDEmitido extends BaseProcessor {
   static readonly tipo = 'I' as const;
@@ -7,7 +8,9 @@ export class IngresoPPDEmitido extends BaseProcessor {
   static readonly descripcion = 'Venta a crédito (emitida)';
   
   async procesar(xmlData: any): Promise<ResultadoContable> {
-    const ivaTrasladado = xmlData.total - xmlData.subtotal;
+    const ivaTrasladado = calcularIVATrasladado(xmlData.impuestos);
+    const isrRetenido = calcularISRRetenido(xmlData.impuestos);
+    const ivaRetenido = calcularIVARetenido(xmlData.impuestos);
     
     return {
       CFDI: this.extraerCFDI(xmlData),
