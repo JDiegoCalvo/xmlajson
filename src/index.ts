@@ -9,9 +9,7 @@ const parser = new XMLParser({
   parseTagValue: true,
   parseAttributeValue: true,
   isArray: (name, jpath, isLeafNode, isAttribute) => {
-    // Forzar array para estos nodos
-    if (name === 'cfdi:Concepto' || name === 'cfdi:Traslado' || 
-        name === 'cfdi:Retencion' || name === 'cfdi:Impuestos') {
+    if (name === 'cfdi:Concepto') {
       return true;
     }
     return false;
@@ -33,9 +31,68 @@ export async function procesarFacturaXML(
     // Extraer el Timbre Fiscal Digital
     const timbre = cfdi['cfdi:Complemento']?.['tfd:TimbreFiscalDigital'];
     
-    // 2. Normalizar datos con TODOS los campos necesarios
+    // 2. Extraer los impuestos de los conceptos (DETALLES COMPLETOS)
+    const conceptosImpuestos = (() => {
+      const conceptosNode = cfdi['cfdi:Conceptos'];
+      if (!conceptosNode) return [];
+      
+      const conceptos = conceptosNode['cfdi:Concepto'];
+      if (!conceptos) return [];
+      
+      const conceptosArray = Array.isArray(conceptos) ? conceptos : [conceptos];
+      
+      const todosImpuestos: any[] = [];
+      
+conceptosArray.forEach(concepto => {
+  const conceptoImpuestos = concepto['cfdi:Impuestos'];
+  if (!conceptoImpuestos) return;
+  
+  // Función para normalizar el código de impuesto
+  const normalizarImpuesto = (valor: any): string => {
+    const str = String(valor || '');
+    if (str.length === 1) return `00${str}`;
+    if (str.length === 2) return `0${str}`;
+    return str;
+  };
+  
+  // Extraer traslados del concepto
+  const traslados = conceptoImpuestos['cfdi:Traslados']?.['cfdi:Traslado'];
+  if (traslados) {
+    const trasladosArray = Array.isArray(traslados) ? traslados : [traslados];
+    trasladosArray.forEach((traslado: any) => {
+      todosImpuestos.push({
+        tipo: 'traslado',
+        impuesto: normalizarImpuesto(traslado['@_Impuesto']),
+        tipoFactor: traslado['@_TipoFactor'],
+        tasa: parseFloat(traslado['@_TasaOCuota'] || 0),
+        base: parseFloat(traslado['@_Base'] || 0),
+        importe: parseFloat(traslado['@_Importe'] || 0)
+      });
+    });
+  }
+  
+  // Extraer retenciones del concepto
+  const retenciones = conceptoImpuestos['cfdi:Retenciones']?.['cfdi:Retencion'];
+  if (retenciones) {
+    const retencionesArray = Array.isArray(retenciones) ? retenciones : [retenciones];
+    retencionesArray.forEach((retencion: any) => {
+      todosImpuestos.push({
+        tipo: 'retencion',
+        impuesto: normalizarImpuesto(retencion['@_Impuesto']),
+        tipoFactor: retencion['@_TipoFactor'],
+        tasa: parseFloat(retencion['@_TasaOCuota'] || 0),
+        base: parseFloat(retencion['@_Base'] || 0),
+        importe: parseFloat(retencion['@_Importe'] || 0)
+      });
+    });
+  }
+});
+      
+      return todosImpuestos;
+    })();
+
+    // 3. Normalizar datos
     const xmlData = {
-      // Atributos principales del comprobante (para CFDI en ResultadoContable)
       fecha: cfdi['@_Fecha'],
       tipo: cfdi['@_TipoDeComprobante'],
       moneda: cfdi['@_Moneda'],
@@ -48,41 +105,24 @@ export async function procesarFacturaXML(
       serie: cfdi['@_Serie'] || '',
       version: cfdi['@_Version'] || '4.0',
       exportacion: cfdi['@_Exportacion'] || '01',
-      impuestos: {
-        // Impuestos a nivel comprobante
-        traslados: cfdi['cfdi:Impuestos']?.['cfdi:Traslados']?.['cfdi:Traslado'] || [],
-        retenciones: cfdi['cfdi:Impuestos']?.['cfdi:Retenciones']?.['cfdi:Retencion'] || [],
-        
-        // Impuestos a nivel concepto (si los necesitas)
-        conceptosImpuestos: (() => {
-          const conceptos = cfdi['cfdi:Conceptos']?.['cfdi:Concepto'];
-          if (!conceptos) return [];
-          
-          const conceptosArray = Array.isArray(conceptos) ? conceptos : [conceptos];
-          return conceptosArray.map((concepto: any) => ({
-            traslados: concepto['cfdi:Impuestos']?.['cfdi:Traslados']?.['cfdi:Traslado'] || [],
-            retenciones: concepto['cfdi:Impuestos']?.['cfdi:Retenciones']?.['cfdi:Retencion'] || []
-          }));
-        })()
-      },
       
-      // Emisor - datos completos
+      // Solo necesitamos los impuestos de los conceptos (detalles completos)
+      impuestos: conceptosImpuestos,
+      
       emisor: {
         rfc: cfdi['cfdi:Emisor']?.['@_Rfc'],
         nombre: cfdi['cfdi:Emisor']?.['@_Nombre'],
         regimenFiscal: cfdi['cfdi:Emisor']?.['@_RegimenFiscal']
       },
       
-      // Receptor - datos completos (¡IMPORTANTE: 'UsoCFDI' no 'usoCFDI'!)
       receptor: {
         rfc: cfdi['cfdi:Receptor']?.['@_Rfc'],
         nombre: cfdi['cfdi:Receptor']?.['@_Nombre'],
         regimenFiscal: cfdi['cfdi:Receptor']?.['@_RegimenFiscalReceptor'],
-        usoCFDI: cfdi['cfdi:Receptor']?.['@_UsoCFDI'], // ← Así está en el XML
+        usoCFDI: cfdi['cfdi:Receptor']?.['@_UsoCFDI'],
         domicilioFiscalReceptor: cfdi['cfdi:Receptor']?.['@_DomicilioFiscalReceptor']
       },
       
-      // Conceptos
       conceptos: (() => {
         const conceptosNode = cfdi['cfdi:Conceptos'];
         if (!conceptosNode) return [];
@@ -112,16 +152,16 @@ export async function procesarFacturaXML(
         return [];
       })(),
       
-      // Timbre Fiscal Digital (TFD) - ¡ESTO ES CLAVE PARA 'pac'!
       uuid: timbre?.['@_UUID'],
       fechaTimbrado: timbre?.['@_FechaTimbrado'],
-      // 'pac' en el XML se llama 'RfcProvCertif' en el Timbre
-      rfcProvCertif: timbre?.['@_RfcProvCertif'], // ← ESTO ES EL 'pac'
+      rfcProvCertif: timbre?.['@_RfcProvCertif'],
       noCertificadoSAT: timbre?.['@_NoCertificadoSAT'],
       
-      // Complemento completo
       complemento: cfdi['cfdi:Complemento']
     };
+
+    // DEBUG
+    console.log('DEBUG: Impuestos extraídos de conceptos:', xmlData.impuestos);
 
     // 3. Usar el router para procesar
     const resultado = await RouterCasos.procesar(xmlData, config);
@@ -136,7 +176,7 @@ export async function procesarFacturaXML(
 // Ejemplo de uso MÁS COMPLETO
 async function ejemploUso() {
   // XML de prueba MÁS COMPLETO
-  const xmlDeEjemplo = ``
+  const xmlDeEjemplo = ``;
 
   const config: ConfigProcesamiento = {
     clientId: 123,

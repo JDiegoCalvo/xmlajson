@@ -8,9 +8,16 @@ export class IngresoPPDEmitido extends BaseProcessor {
   static readonly descripcion = 'Venta a crédito (emitida)';
   
   async procesar(xmlData: any): Promise<ResultadoContable> {
-    const ivaTrasladado = calcularIVATrasladado(xmlData.impuestos);
-    const isrRetenido = calcularISRRetenido(xmlData.impuestos);
-    const ivaRetenido = calcularIVARetenido(xmlData.impuestos);
+    console.log(xmlData.impuestos.conceptosImpuestos)
+    // IMPORTANTE: Pasar el objeto completo, no solo xmlData.impuestos
+    const ivaTrasladado = calcularIVATrasladado(xmlData);
+    const isrRetenido = calcularISRRetenido(xmlData);
+    const ivaRetenido = calcularIVARetenido(xmlData);
+
+    console.log('Impuestos extraídos:', xmlData.impuestos);
+    console.log('IVA Trasladado calculado:', ivaTrasladado);
+    console.log('ISR Retenido calculado:', isrRetenido);
+    console.log('IVA Retenido calculado:', ivaRetenido);
     
     return {
       CFDI: this.extraerCFDI(xmlData),

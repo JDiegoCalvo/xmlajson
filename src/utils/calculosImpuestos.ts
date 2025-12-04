@@ -1,112 +1,79 @@
-// src/utils/calculosImpuestos.ts
+// src/utils/calculosImpuestos.ts - Versión super simple
 
 /**
  * Calcula el total de IVA trasladado (Impuesto 002) con TipoFactor "Tasa"
- * @param impuestosData - Objeto con estructura de impuestos del XML parseado
- * @returns Total de IVA trasladado
  */
-export function calcularIVATrasladado(impuestosData: any): number {
-    let totalIVA = 0;
+export function calcularIVATrasladado(xmlData: any): number {
+    if (!xmlData.impuestos || !Array.isArray(xmlData.impuestos)) return 0;
     
-    // Caso 1: Impuestos en nivel comprobante (nodo principal)
-    if (impuestosData && impuestosData.traslados) {
-        const traslados = Array.isArray(impuestosData.traslados) 
-            ? impuestosData.traslados 
-            : [impuestosData.traslados];
-            
-        totalIVA += traslados
-            .filter((traslado: any) => 
-                traslado['@_Impuesto'] === '002' && 
-                traslado['@_TipoFactor'] === 'Tasa'
-            )
-            .reduce((sum: number, traslado: any) => 
-                sum + parseFloat(traslado['@_Importe'] || 0), 0);
-    }
+    const totalIVA = xmlData.impuestos
+        .filter((impuesto: any) => 
+            impuesto.tipo === 'traslado' &&
+            impuesto.impuesto === '002' && 
+            impuesto.tipoFactor === 'Tasa'
+        )
+        .reduce((sum: number, impuesto: any) => 
+            sum + (impuesto.importe || 0), 0);
     
-    // Caso 2: Impuestos en nivel concepto (dentro de cada concepto)
-    if (impuestosData && impuestosData.conceptosImpuestos) {
-        impuestosData.conceptosImpuestos.forEach((conceptoImpuestos: any) => {
-            if (conceptoImpuestos.traslados) {
-                const traslados = Array.isArray(conceptoImpuestos.traslados) 
-                    ? conceptoImpuestos.traslados 
-                    : [conceptoImpuestos.traslados];
-                    
-                totalIVA += traslados
-                    .filter((traslado: any) => 
-                        traslado['@_Impuesto'] === '002' && 
-                        traslado['@_TipoFactor'] === 'Tasa'
-                    )
-                    .reduce((sum: number, traslado: any) => 
-                        sum + parseFloat(traslado['@_Importe'] || 0), 0);
-            }
-        });
-    }
-    
-    // Redondear a 2 decimales (como el SAT)
+    console.log('IVA Trasladado calculado:', totalIVA);
     return Math.round(totalIVA * 100) / 100;
 }
 
 /**
  * Calcula el total de ISR retenido (Impuesto 001)
  */
-export function calcularISRRetenido(impuestosData: any): number {
-    return calcularImpuestoRetenido(impuestosData, '001');
+export function calcularISRRetenido(xmlData: any): number {
+    if (!xmlData.impuestos || !Array.isArray(xmlData.impuestos)) return 0;
+    
+    const totalISR = xmlData.impuestos
+        .filter((impuesto: any) => 
+            impuesto.tipo === 'retencion' &&
+            impuesto.impuesto === '001'
+        )
+        .reduce((sum: number, impuesto: any) => 
+            sum + (impuesto.importe || 0), 0);
+    
+    console.log('ISR Retenido calculado:', totalISR);
+    return Math.round(totalISR * 100) / 100;
 }
 
 /**
  * Calcula el total de IVA retenido (Impuesto 002 como retención)
  */
-export function calcularIVARetenido(impuestosData: any): number {
-    return calcularImpuestoRetenido(impuestosData, '002');
+export function calcularIVARetenido(xmlData: any): number {
+    if (!xmlData.impuestos || !Array.isArray(xmlData.impuestos)) return 0;
+    
+    const totalIVA = xmlData.impuestos
+        .filter((impuesto: any) => 
+            impuesto.tipo === 'retencion' &&
+            impuesto.impuesto === '002'
+        )
+        .reduce((sum: number, impuesto: any) => 
+            sum + (impuesto.importe || 0), 0);
+    
+    console.log('IVA Retenido calculado:', totalIVA);
+    return Math.round(totalIVA * 100) / 100;
 }
 
 /**
- * Función genérica para calcular retenciones
+ * Obtiene todos los impuestos trasladados (para referencia)
  */
-function calcularImpuestoRetenido(impuestosData: any, impuestoCodigo: string): number {
-    let total = 0;
-    
-    if (impuestosData && impuestosData.retenciones) {
-        const retenciones = Array.isArray(impuestosData.retenciones) 
-            ? impuestosData.retenciones 
-            : [impuestosData.retenciones];
-            
-        total += retenciones
-            .filter((retencion: any) => retencion['@_Impuesto'] === impuestoCodigo)
-            .reduce((sum: number, retencion: any) => 
-                sum + parseFloat(retencion['@_Importe'] || 0), 0);
-    }
-    
-    return Math.round(total * 100) / 100;
-}
-
-/**
- * Obtiene todos los impuestos trasladados agrupados por tipo
- */
-export function obtenerImpuestosTrasladados(impuestosData: any): Array<{
+export function obtenerImpuestosTrasladados(xmlData: any): Array<{
     impuesto: string;
     tipoFactor: string;
     tasaOCuota: number;
     importe: number;
     base: number;
 }> {
-    const resultado: any[] = [];
+    if (!xmlData.impuestos || !Array.isArray(xmlData.impuestos)) return [];
     
-    if (impuestosData && impuestosData.traslados) {
-        const traslados = Array.isArray(impuestosData.traslados) 
-            ? impuestosData.traslados 
-            : [impuestosData.traslados];
-            
-        traslados.forEach((traslado: any) => {
-            resultado.push({
-                impuesto: traslado['@_Impuesto'] || '',
-                tipoFactor: traslado['@_TipoFactor'] || '',
-                tasaOCuota: parseFloat(traslado['@_TasaOCuota'] || 0),
-                importe: parseFloat(traslado['@_Importe'] || 0),
-                base: parseFloat(traslado['@_Base'] || 0)
-            });
-        });
-    }
-    
-    return resultado;
+    return xmlData.impuestos
+        .filter((impuesto: any) => impuesto.tipo === 'traslado')
+        .map((impuesto: any) => ({
+            impuesto: impuesto.impuesto,
+            tipoFactor: impuesto.tipoFactor,
+            tasaOCuota: impuesto.tasa,
+            importe: impuesto.importe,
+            base: impuesto.base
+        }));
 }

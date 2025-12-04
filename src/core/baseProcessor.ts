@@ -18,7 +18,7 @@ export abstract class BaseProcessor {
       fecha_expedicion: xmlData.fecha.substring(0, 10),
       fecha_certificacion: xmlData.fechaTimbrado?.substring(0, 10) || '',
       fecha_pago: '',
-      uso_de_cfdi: xmlData.receptor?.usoCFDI || xmlData.usoCFDI || '',
+      uso_de_cfdi: xmlData.receptor?.usoCFDI,
       pac: xmlData.rfcProvCertif || '',
       version: xmlData.version,
       folio: xmlData.folio,
